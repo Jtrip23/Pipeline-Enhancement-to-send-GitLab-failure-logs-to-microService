@@ -1,0 +1,7 @@
+Pipeline Enhancement to send GitLab failure logs to microService
+
+Pipeline Enhancement to send GitLab failure logs to microService.
+
+Currently onboarding pipeline sends the log file content of the failed log to microService but the build pipeline is sending only the URL for failed job. Need to enhance the build pipeline to send failed job logs instead of sending just the url.
+
+Check with Ankit for more details on this issue.
