@@ -31,4 +31,4 @@ build:notify-failure:
       curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
         --header 'Content-Type:application/json' \
         --header "Authorization: Bearer ${JWT_TOKEN}" \
-        --data-raw "{\"trackingId\":\"${TRACKING_ID}\",\"commitId\":\"$(cat commit_id)\",\"scmOnboardStatus\":\"failed\",\"pipelineStatus\":\"not started\",\"pipelineFailedStage\":\"${FAILED_STAGE}\",\"pipelineId\":\"${CI_PIPELINE_ID}\",\"pipelineErrorDetails\":\"${ERROR_DETAILS}\",\"pipelineType\":\"${PIPELINE_TYPE}\",\"projectId\":\"${CI_PROJECT_ID}\",\"refBranch\":\"${CI_COMMIT_REF_NAME}\"}"
+        --data-raw "{\"trackingId\":\"${TRACKING_ID}\",\"commitId\":\"$(cat commit_id)\",\"pipelineStatus\":\"failed\",\"pipelineFailedStage\":\"${FAILED_STAGE}\",\"pipelineId\":\"${CI_PIPELINE_ID}\",\"pipelineErrorDetails\":\"${ERROR_DETAILS}\",\"pipelineType\":\"${PIPELINE_TYPE}\",\"projectId\":\"${CI_PROJECT_ID}\",\"refBranch\":\"${CI_COMMIT_REF_NAME}\"}"
