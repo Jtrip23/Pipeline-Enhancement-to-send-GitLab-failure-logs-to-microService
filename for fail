@@ -1,0 +1,5 @@
+fail-on-purpose:
+  stage: test
+  script:
+    - echo "Intentionally failing the pipeline"
+    - exit 1
