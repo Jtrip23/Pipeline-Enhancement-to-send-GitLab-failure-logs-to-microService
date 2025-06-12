@@ -1,0 +1,229 @@
+variables:
+    MAVEN_CLI_OPTS: ""
+    MAVEN_CLI_OPTS_OLD: "-s .m2/cicd-settings.xml --batch-mode"
+    MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+    CI_DEBUG_TRACE: "false"
+    DEFAULT_BRANCH: "feature-1"
+    TRACKING_ID: $trackingId
+    PIPELINE_TYPE: "$artifact_type"
+    AZURE_BLOB_URL: "$blob_url"
+    pipelineType: "gitlab"
+    APIGEE_JWT_TOKEN_URL: "https://connect-uat.fiservapis.com/fts-apim/jwt/v1/token/generate"
+  
+default :
+  tags:
+    - apihub-shell-prod
+
+.gitlab_repo_creation_template: &gitlab_repo_creation_definition
+  script:
+    - echo "https://$scm_url/$gitlab_api?name=$repo_name&private_token=$private_token&namespace_id=$namespace_id"
+    - 'curl -X POST "https://$scm_url/$gitlab_api?name=$repo_name&private_token=$private_token&namespace_id=$namespace_id" -H "Content-Type: application/json"'
+
+
+.code_push_template: &code_push_definition
+  artifacts:
+    paths:
+      - $repo_name
+  script:
+    - git config --global user.name "$user_name"
+    - git config --global user.email "$user_email"
+    - echo $blob_url
+    - echo https://$user_name:$private_token@$scm_url/$gitlab_group/$repo_name.git
+    - git clone https://$user_name:$private_token@$scm_url/$gitlab_group/$repo_name.git
+    - cd $repo_name
+    - curl "$AZURE_BLOB_URL" --output download.zip 
+    - unzip -q -o ./download.zip
+    - rm -rf ./download.zip 
+    - |
+      git add .  && \
+      git status  && \
+      git commit -m "$commit_message"  && \
+      git push -u origin HEAD:master
+
+.create_dev_branch_template: &code_push_dev_branch
+  script:
+    - git config --global user.name "$user_name"
+    - git config --global user.email "$user_email"
+    - echo "Inside Creating Develop Branch"
+    - echo $blob_url
+    - echo https://$user_name:$private_token@$scm_url/$gitlab_group/$repo_name.git
+    - git clone https://$user_name:$private_token@$scm_url/$gitlab_group/$repo_name.git
+    - cd $repo_name
+    - |
+      git checkout master && \
+      git branch develop master  && \
+      git checkout develop  && \
+      git commit --allow-empty -m "$commit_message - [skip ci]"  && \
+      git push --set-upstream origin develop        
+
+.create_feature_branch_template: &code_push_feat_branch
+  script:
+    - git config --global user.name "$user_name"
+    - git config --global user.email "$user_email"
+    - echo "Inside Creating Feature Branch"
+    - echo $blob_url
+    - echo https://$user_name:$private_token@$scm_url/$gitlab_group/$repo_name.git
+    - git clone https://$user_name:$private_token@$scm_url/$gitlab_group/$repo_name.git
+    - cd $repo_name
+    - |
+      git checkout master && \
+      git branch feature-1 master  && \
+      git checkout feature-1  && \
+      git commit --allow-empty -m "$commit_message"  && \
+      git push --set-upstream origin feature-1
+
+.create_hotfix_branch_template: &code_push_hotfix_branch
+  script:
+    - git config --global user.name "$user_name"
+    - git config --global user.email "$user_email"
+    - echo "Inside Creating Hotfix Branch"
+    - echo $blob_url
+    - echo https://$user_name:$private_token@$scm_url/$gitlab_group/$repo_name.git
+    - git clone https://$user_name:$private_token@$scm_url/$gitlab_group/$repo_name.git
+    - cd $repo_name
+    - |
+      git checkout master && \
+      git branch hotfix master  && \
+      git checkout hotfix  && \
+      git push --set-upstream origin hotfix
+
+.change_default_branch_and_protect_template: &code_chg_default_branch_and_protect
+  script:
+    - 'curl -X PUT "https://$scm_url/$gitlab_api/$namespace_id?default_branch=$DEFAULT_BRANCH" -H "PRIVATE-TOKEN:$private_token"'
+    - echo "Setting branch protection for $DEFAULT_BRANCH, develop and hotfix branches"
+#    - |
+#        for BRANCH in develop hotfix $DEFAULT_BRANCH
+#        do
+#          'curl -X POST "$scm_url/$gitlab_api/$namespace_id/protected_branches?name=$BRANCH&push_access_level=30&#merge_access_level=30&unprotect_access_level=40" -H "PRIVATE-TOKEN:$private_token"'
+#        done
+
+stages:
+  - create-repo
+  - seed-repo
+  - create-feature-branch
+  - create-develop-branch
+  - create-hotfix-branch
+  - change-default-branch-and-protect
+  - notify
+
+build:connection :
+  <<: *gitlab_repo_creation_definition
+  stage: create-repo
+  artifacts:
+    when: always
+    paths:
+      - edge
+
+build:deploy :
+  <<: *code_push_definition
+  stage: seed-repo
+  needs:
+    - build:connection
+  artifacts:
+    when: always
+    paths:
+      - target
+
+build:create-dev-branch :
+  <<: *code_push_dev_branch
+  stage: create-develop-branch
+  needs:
+    - build:deploy
+  artifacts:
+    when: always
+    paths:
+      - target
+
+build:create-feat-branch :
+  <<: *code_push_feat_branch
+  stage: create-feature-branch
+  needs:
+    - build:deploy
+  artifacts:
+    when: always
+    paths:
+      - target
+
+build:create-hotfix-branch :
+  <<: *code_push_hotfix_branch
+  stage: create-hotfix-branch
+  needs:
+    - build:deploy
+  artifacts:
+    when: always
+    paths:
+      - target
+
+build:chg-default-branch :
+  <<: *code_chg_default_branch_and_protect
+  stage: change-default-branch-and-protect
+  needs:
+    - build:create-feat-branch
+    - build:create-dev-branch
+    - build:create-hotfix-branch
+
+notify_success:
+  image: $Nexus_URL/apim-maven-apigee-saas:latest
+  stage: notify
+  allow_failure: true
+  script:
+   - |
+      echo $CI_JOB_STAGE
+      echo $CI_COMMIT_SHORT_SHA > commit_id
+      cat commit_id
+      echo $FAILED_STAGE
+      echo $TRACKING_ID
+      echo $PIPELINE_TYPE
+      # Retrieve JWT token
+      JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \
+                  --header 'Content-Type: application/x-www-form-urlencoded' \
+                  --header 'Authorization: Basic TWg5VktuaVc5cktWa0JSWllvYW1HWjlrNWhHQ25yQ3E6cE5WalBkQmduNzZ2MUkwQTloQkZSQkd0aTRpaHhrMWpPc0FvOU1MWmdPUg==' \
+                  --data-urlencode 'alg=RS256' \
+                  --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
+      echo $JWT_TOKEN
+      echo "curl --location --request PUT https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status"
+      curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/$PIPELINE_TYPE/update-status" --header 'Content-Type: application/json' --header "Authorization: Bearer ${JWT_TOKEN}" --data "{\"trackingId\":\"${TRACKING_ID}\",\"commitId\":\"${CI_COMMIT_SHORT_SHA}\",\"scmOnboardStatus\":\"success\",\"pipelineStatus\":\"started\",\"pipelineFailedStage\":\"NA\",\"pipelineId\":\"${CI_PIPELINE_ID}\",\"pipelineErrorDetails\":\"NA\", \"pipelineType\":\"${pipelineType}\",\"projectId\":\"${CI_PROJECT_ID}\",\"refBranch\":\"${CI_COMMIT_REF_NAME}\"}" -vvv
+      
+noitfy_fail:
+  image: $Nexus_URL/apim-maven-apigee-saas:latest
+  stage: notify
+  allow_failure: true
+  when: on_failure
+  script:
+   - |
+      echo $CI_COMMIT_SHORT_SHA > commit_id
+      cat commit_id
+      echo $FAILED_STAGE
+      echo $TRACKING_ID
+      # Retrieve JWT token
+      JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \
+                  --header 'Content-Type: application/x-www-form-urlencoded' \
+                  --header 'Authorization: Basic TWg5VktuaVc5cktWa0JSWllvYW1HWjlrNWhHQ25yQ3E6cE5WalBkQmduNzZ2MUkwQTloQkZSQkd0aTRpaHhrMWpPc0FvOU1MWmdPUg==' \
+                  --data-urlencode 'alg=RS256' \
+                  --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
+      echo $JWT_TOKEN
+      curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope\[\]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
+      cat data.json
+      FAILED_STAGE=`sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \1 /p' data.json`
+      ERROR_DETAILS=`sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \2 /p' data.json`
+      echo $ERROR_DETAILS
+      if [[ -z $ERROR_DETAILS  ]]; then       
+        ERROR_DETAILS="Invalid private_token"
+      else
+        JOB_ID=$(echo $ERROR_DETAILS | awk -F'/' '{print $NF}')
+        echo $JOB_ID
+        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
+        
+        sed 's/"//g' logs.txt > logs_no_quotes.txt
+        sed  "s,\x1B\[[0-9;]*[a-zA-Z],,g;s,\x0D\x0A,\x0A,g" logs_no_quotes.txt > logs_remove_junk_chars.txt
+        
+        sed 's/$/#########/' logs_remove_junk_chars.txt > final_logs.txt
+        sed -e 's/\r/####/g' final_logs.txt > concatenated_logs.txt
+ 
+      fi
+          
+      ERROR_DETAILS=$(cat concatenated_logs.txt)
+      ERROR_DETAILS=$(printf "%s" "$ERROR_DETAILS" | sed ':a;N;$!ba;s/\n/\\n/g')
+      echo $ERROR_DETAILS
+      curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" --header 'Content-Type:application/json' --header "Authorization: Bearer ${JWT_TOKEN}" -d "{\"trackingId\":\"${TRACKING_ID}\",\"commitId\":\"$(cat commit_id)\",\"scmOnboardStatus\":\"failed\",\"pipelineStatus\":\"not started\",\"pipelineFailedStage\":\"${FAILED_STAGE}\",\"pipelineId\":\"${CI_PIPELINE_ID}\",\"pipelineErrorDetails\":\"${ERROR_DETAILS}\", \"pipelineType\":\"${pipelineType}\",\"projectId\":\"${CI_PROJECT_ID}\",\"refBranch\":\"${CI_COMMIT_REF_NAME}\"}"
+
