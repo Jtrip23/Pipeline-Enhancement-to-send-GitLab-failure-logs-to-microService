@@ -5,36 +5,45 @@ build:notify-failure:
   allow_failure: true
   script:
     - echo "$CI_COMMIT_SHORT_SHA" > commit_id
+
+    # Get JWT token
     - |
       JWT_TOKEN=$(curl --silent --location --request POST "$APIGEE_JWT_TOKEN_URL" \
         --header 'Content-Type: application/x-www-form-urlencoded' \
-        --header 'Authorization: Basic TWg5VktuaVc5cktWa0JSWllvYW1HWjlrNWhHQ25yQ3E6cE5WalBkQmduNzZ2MUkwQTloQkZSQkd0aTRpaHhrMWpPc0FvOU1MWmdPUg==' \
+        --header 'Authorization: Basic YOUR_AUTH' \
         --data-urlencode 'alg=RS256' \
-        --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
-    - |
-      curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
+        --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' \
+        | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//')
+
+    # Get failed jobs
+    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
         --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > failed_jobs.json
-    - echo "[" > structured_logs.json
+
+    # Build error details
+    - echo "" > combined_logs.txt
     - |
-      job_count=$(jq length failed_jobs.json)
-      for i in $(seq 0 $((job_count - 1))); do
-        job_id=$(jq -r ".[$i].id" failed_jobs.json)
-        job_name=$(jq -r ".[$i].name" failed_jobs.json)
-        job_stage=$(jq -r ".[$i].stage" failed_jobs.json)
+      grep -o '"id":[0-9]*,"status":"failed".*web_url":"[^"]*"' failed_jobs.json | while read -r line; do
+        JOB_ID=$(echo "$line" | grep -o '"id":[0-9]*' | cut -d':' -f2)
+        JOB_NAME=$(echo "$line" | grep -o '"name":"[^"]*"' | cut -d':' -f2 | tr -d '"')
+        JOB_STAGE=$(echo "$line" | grep -o '"stage":"[^"]*"' | cut -d':' -f2 | tr -d '"')
+        echo "===== Job: $JOB_NAME =====" >> combined_logs.txt
+        echo "Stage: $JOB_STAGE" >> combined_logs.txt
+        echo "Log:" >> combined_logs.txt
 
         curl --silent --location --request GET \
-          "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$job_id/trace" \
-          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -o job_trace.txt
+          "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
+          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" >> combined_logs.txt
 
-        job_log=$(cat job_trace.txt | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\\n/\\\\n/g')
-
-        echo "{\"jobName\": \"$job_name\", \"stage\": \"$job_stage\", \"log\": \"$job_log\"}," >> structured_logs.json
+        echo -e "\\n----- End of Job $JOB_NAME -----\\n" >> combined_logs.txt
       done
-    - sed -i '$ s/,$//' structured_logs.json
-    - echo "]" >> structured_logs.json
-    - ERROR_DETAILS=$(cat structured_logs.json)
+
+    # Clean and escape logs
+    - sed 's,\\x1B\\[[0-9;]*[a-zA-Z],,g;s/\r//' combined_logs.txt > cleaned_logs.txt
+    - ERROR_DETAILS=$(cat cleaned_logs.txt | sed ':a;N;$!ba;s/\n/\\n/g')
+
+    # Send to backend
     - |
       curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
         --header 'Content-Type:application/json' \
         --header "Authorization: Bearer ${JWT_TOKEN}" \
-        --data-raw "{\"trackingId\":\"${TRACKING_ID}\",\"commitId\":\"$(cat commit_id)\",\"pipelineStatus\":\"failed\",\"pipelineFailedStage\":\"multiple\",\"pipelineId\":\"${CI_PIPELINE_ID}\",\"pipelineErrorDetails\":${ERROR_DETAILS},\"pipelineType\":\"${PIPELINE_TYPE}\",\"projectId\":\"${CI_PROJECT_ID}\",\"refBranch\":\"${CI_COMMIT_REF_NAME}\"}"
+        --data-raw "{\"trackingId\":\"${TRACKING_ID}\",\"commitId\":\"$(cat commit_id)\",\"pipelineStatus\":\"failed\",\"pipelineFailedStage\":\"multiple\",\"pipelineId\":\"${CI_PIPELINE_ID}\",\"pipelineErrorDetails\":\"${ERROR_DETAILS}\",\"pipelineType\":\"${PIPELINE_TYPE}\",\"projectId\":\"${CI_PROJECT_ID}\",\"refBranch\":\"${CI_COMMIT_REF_NAME}\"}"
