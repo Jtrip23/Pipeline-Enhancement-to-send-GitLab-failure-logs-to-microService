@@ -1,3 +1,12 @@
+
+# Intentional fail job to trigger notify
+build:package:
+  stage: package
+  script:
+    - echo "Force failing to test failure notification"
+    - exit 1
+
+# Notification job triggered only on failure
 build:notify-failure:
   image: $APIGEE_FMK_MVN_IMAGE_NAME
   stage: notify
@@ -11,38 +20,30 @@ build:notify-failure:
     - |
       JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \
         --header 'Content-Type: application/x-www-form-urlencoded' \
-        --header 'Authorization: Basic TWg5VktuaVc5cktWa0JSWllvYW1HWjlrNWhHQ25yQ3E6cE5WalBkQmduNzZ2MUkwQTloQkZSQkd0aTRpaHhrMWpPc0FvOU1MWmdPUg==' \
+        --header 'Authorization: Basic <your-auth-header>' \
         --data-urlencode 'alg=RS256' \
-        --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
+        --data-urlencode 'clientId=<your-client-id>' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
       echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
 
-    # Get failed job info (✅ corrected line here — backslash removed)
+    # Get failed jobs list
     - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o data.json
 
-    # Extract ERROR_DETAILS, JOB_ID, and FAILED_STAGE safely
+    # Extract job ID and failed stage
     - |
-      ERROR_DETAILS=$(grep -o '"web_url":"[^"]*' data.json | head -n1 | cut -d'"' -f4 || true)
-      JOB_ID=$(echo "$ERROR_DETAILS" | awk -F'/' '{print $NF}' || true)
+      JOB_ID=$(awk '/"status":"failed"/{getline; print}' data.json | grep -o '"id":[0-9]*' | head -n1 | cut -d':' -f2)
+      FAILED_STAGE=$(awk -v id="$JOB_ID" '
+        $0 ~ "\"id\":"id {found=1}
+        found && $0 ~ "\"stage\":" {
+          gsub(/[",]/, "", $2); print $2; exit
+        }' data.json)
+      echo "JOB_ID: $JOB_ID"
+      echo "FAILED_STAGE: $FAILED_STAGE"
 
-      if [[ -z "$ERROR_DETAILS" || -z "$JOB_ID" ]]; then
-        echo "No failed job or unable to extract job ID / URL"
-        ERROR_DETAILS="No failed job URL found"
+      if [[ -z "$JOB_ID" ]]; then
+        ERROR_DETAILS="No failed job found"
         FAILED_STAGE="unknown"
-        JOB_ID=""
       else
-        echo "JOB_ID: $JOB_ID"
-        echo "ERROR_DETAILS: $ERROR_DETAILS"
-
-        # Get FAILED_STAGE from JSON block for JOB_ID
-        FAILED_STAGE=$(awk -v job_id="$JOB_ID" '
-          $0 ~ "\"id\":"job_id {found=1}
-          found && $0 ~ "\"stage\":" {
-            gsub(/[",]/, "", $2); print $2; exit
-          }' data.json || true)
-
-        echo "FAILED_STAGE: $FAILED_STAGE"
-
-        # Get job logs
+        # Get logs
         curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
           --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
 
@@ -71,10 +72,3 @@ build:notify-failure:
             \"projectId\": \"${CI_PROJECT_ID}\",
             \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
           }"
-  
-build:package:
-  stage: package  
-  script:
-    - echo "Intentional failure for testing notify log collection"
-    - exit 1
-  
