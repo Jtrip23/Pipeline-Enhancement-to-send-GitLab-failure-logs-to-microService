@@ -1,19 +1,21 @@
 Running with gitlab-runner 16.11.2 (1d04b67a)
-  on l7lp2apmglr0004-Prod-Global-GitLab-Cloud-Docker-apihub-shared FKyj3sKQ, system ID: s_842e1c8182d6
+  on l7lp2apmglr0003-Prod-Global-GitLab-Cloud-Docker-apihub-shared _kUsyGH9, system ID: s_842e1c8182d6
 Resolving secrets
 Preparing the "docker" executor
-00:03
+00:04
 Using Docker executor with image fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas:develop-991d2f8c ...
 Pulling docker image fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas:develop-991d2f8c ...
 Using docker image sha256:0a9e5a17e9e76a2ef2425fb5e9fba3d0820f93953ceb5d54ecb65d92089abb53 for fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas:develop-991d2f8c with digest fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas@sha256:307c83568cfce9ff6b2fd7e45c001bc9f58a07272866026092acfd30dce486c6 ...
 Preparing environment
-00:01
-Running on runner-fkyj3skq-project-65122-concurrent-0 via l7lp2apmglr0004...
+00:00
+Running on runner-kusygh9-project-65122-concurrent-0 via l7lp2apmglr0003...
 Getting source from Git repository
 00:02
 Fetching changes with git depth set to 20...
 Reinitialized existing Git repository in /builds/apihub-cloud-testing/ag-proxyx-emea-V1/.git/
 Checking out 9b1402cf as detached HEAD (ref is feature-1)...
+Removing build.env
+Removing service_account.json
 Removing target/
 Skipping Git submodules setup
 Restoring cache
@@ -23,14 +25,14 @@ Downloading cache from https://prodftsapihubgensa.blob.core.windows.net/apihub-p
 Successfully extracted cache
 Downloading artifacts
 00:04
-Downloading artifacts for build:package (15320786)...
-Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15320786 responseStatus=200 OK token=glcbt-64
-Downloading artifacts for build:pre-deploy (15320789)...
-Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15320789 responseStatus=200 OK token=glcbt-64
-Downloading artifacts for build:post-deploy (15320791)...
-Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15320791 responseStatus=200 OK token=glcbt-64
-Downloading artifacts for build:deploy (15320790)...
-Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15320790 responseStatus=200 OK token=glcbt-64
+Downloading artifacts for build:package (15321162)...
+Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15321162 responseStatus=200 OK token=glcbt-64
+Downloading artifacts for build:deploy (15321166)...
+Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15321166 responseStatus=200 OK token=glcbt-64
+Downloading artifacts for build:pre-deploy (15321165)...
+Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15321165 responseStatus=200 OK token=glcbt-64
+Downloading artifacts for build:post-deploy (15321167)...
+Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15321167 responseStatus=200 OK token=glcbt-64
 Executing "step_script" stage of the job script
 00:03
 Using docker image sha256:0a9e5a17e9e76a2ef2425fb5e9fba3d0820f93953ceb5d54ecb65d92089abb53 for fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas:develop-991d2f8c with digest fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas@sha256:307c83568cfce9ff6b2fd7e45c001bc9f58a07272866026092acfd30dce486c6 ...
@@ -40,14 +42,13 @@ TRACKING_ID = lvbSd8HmIpM6YupyfsGe4
 $ JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \ # collapsed multi-line command
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100   887  100   836  100    51   1093     66 --:--:-- --:--:-- --:--:--  1160
+100   887  100   836  100    51   1622     98 --:--:-- --:--:-- --:--:--  1722
 JWT_TOKEN (truncated): eyJraWQiOi...
-$ curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \ --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
+$ curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100    35  100    35    0     0     96      0 --:--:-- --:--:-- --:--:--    95
-curl: (3) URL using bad/illegal format or missing URL
-curl: (3) URL using bad/illegal format or missing URL
+100   118  100   118    0     0    382      0 --:--:-- --:--:-- --:--:--   381
+$ ERROR_DETAILS=$(grep -o '"web_url":"[^"]*' data.json | head -n1 | cut -d'"' -f4) # collapsed multi-line command
 Cleaning up project directory and file based variables
-00:00
+00:01
 ERROR: Job failed: exit code 1
