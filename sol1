@@ -1,0 +1,62 @@
+build:notify-failure:
+  image: $APIGEE_FMK_MVN_IMAGE_NAME
+  stage: notify
+  when: on_failure
+  allow_failure: true
+  script:
+    - echo $CI_COMMIT_SHORT_SHA > commit_id
+    - echo "TRACKING_ID = $TRACKING_ID"
+
+    # Get JWT token
+    - |
+      JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \
+        --header 'Content-Type: application/x-www-form-urlencoded' \
+        --header 'Authorization: Basic TWg5VktuaVc5cktWa0JSWllvYW1HWjlrNWhHQ25yQ3E6cE5WalBkQmduNzZ2MUkwQTloQkZSQkd0aTRpaHhrMWpPc0FvOU1MWmdPUg==' \
+        --data-urlencode 'alg=RS256' \
+        --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
+      echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
+
+    # Get failed jobs list
+    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
+
+    # Extract failed job ID and its stage
+    - |
+      JOB_ID=$(grep -o '"id":[0-9]*' data.json | head -n1 | cut -d':' -f2)
+      echo "Resolved JOB_ID: $JOB_ID"
+      FAILED_STAGE=$(grep -A 5 "\"id\":$JOB_ID" data.json | grep '"stage":' | head -n1 | cut -d':' -f2 | tr -d '", ')
+      echo "Resolved FAILED_STAGE: $FAILED_STAGE"
+
+    # Get failed job logs
+    - |
+      if [[ -z "$JOB_ID" ]]; then
+        echo "Failed to resolve job ID. Possibly invalid token or no failed jobs."
+        ERROR_DETAILS="Invalid private_token or no failed jobs"
+      else
+        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
+          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
+
+        sed 's/"//g' logs.txt > logs_no_quotes.txt
+        sed "s,\x1B\[[0-9;]*[a-zA-Z],,g;s,\x0D\x0A,\x0A,g" logs_no_quotes.txt > logs_cleaned.txt
+        sed 's/$/#########/' logs_cleaned.txt > final_logs.txt
+        sed -e 's/\r/####/g' final_logs.txt > concatenated_logs.txt
+
+        ERROR_DETAILS=$(cat concatenated_logs.txt | sed ':a;N;$!ba;s/\n/\\n/g')
+      fi
+
+    # Send error details to microservice
+    - |
+      curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
+        --header 'Content-Type: application/json' \
+        --header "Authorization: Bearer ${JWT_TOKEN}" \
+        --data-raw "{
+          \"trackingId\": \"${TRACKING_ID}\",
+          \"commitId\": \"$(cat commit_id)\",
+          \"scmOnboardStatus\": \"failed\",
+          \"pipelineStatus\": \"not started\",
+          \"pipelineFailedStage\": \"${FAILED_STAGE}\",
+          \"pipelineId\": \"${CI_PIPELINE_ID}\",
+          \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
+          \"pipelineType\": \"${PIPELINE_TYPE}\",
+          \"projectId\": \"${CI_PROJECT_ID}\",
+          \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
+        }"
