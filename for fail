@@ -1,5 +1,8 @@
-fail-on-purpose:
-  stage: test
+build:test-fail:
+  stage: package  # you can change to "lint" or "init" if needed
   script:
-    - echo "Intentionally failing the pipeline"
+    - echo "Intentional failure for testing notify log collection"
     - exit 1
+  allow_failure: false
+  rules:
+    - when: always
