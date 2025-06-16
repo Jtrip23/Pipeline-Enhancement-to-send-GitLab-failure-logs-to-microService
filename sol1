@@ -16,11 +16,10 @@ build:notify-failure:
         --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
       echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
 
-    # Get failed jobs list
-    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
-        --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o data.json
+    # Get failed job info (✅ corrected line here — backslash removed)
+    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o data.json
 
-    # Extract ERROR_DETAILS, JOB_ID, and FAILED_STAGE (safely)
+    # Extract ERROR_DETAILS, JOB_ID, and FAILED_STAGE safely
     - |
       ERROR_DETAILS=$(grep -o '"web_url":"[^"]*' data.json | head -n1 | cut -d'"' -f4 || true)
       JOB_ID=$(echo "$ERROR_DETAILS" | awk -F'/' '{print $NF}' || true)
@@ -55,7 +54,7 @@ build:notify-failure:
         ERROR_DETAILS=$(cat concatenated_logs.txt | sed ':a;N;$!ba;s/\n/\\n/g')
       fi
 
-    # Send final data to microservice
+    # Send to microservice
     - |
       curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
         --header 'Content-Type: application/json' \
