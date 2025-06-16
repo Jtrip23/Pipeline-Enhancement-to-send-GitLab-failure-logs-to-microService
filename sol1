@@ -1,12 +1,3 @@
-
-# Intentional fail job to trigger notify
-build:package:
-  stage: package
-  script:
-    - echo "Force failing to test failure notification"
-    - exit 1
-
-# Notification job triggered only on failure
 build:notify-failure:
   image: $APIGEE_FMK_MVN_IMAGE_NAME
   stage: notify
@@ -20,55 +11,62 @@ build:notify-failure:
     - |
       JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \
         --header 'Content-Type: application/x-www-form-urlencoded' \
-        --header 'Authorization: Basic <your-auth-header>' \
+        --header 'Authorization: Basic <your-base64-auth>' \
         --data-urlencode 'alg=RS256' \
-        --data-urlencode 'clientId=<your-client-id>' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
+        --data-urlencode 'clientId=<your-client-id>' | grep -o '"access_token":"[^"]*' | cut -d':' -f2 | tr -d '"')
       echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
 
-    # Get failed jobs list
-    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o data.json
+    # Get failed jobs data
+    - curl -s --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
+        --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
 
-    # Extract job ID and failed stage
+    # Extract web_url and job_id
     - |
-      JOB_ID=$(awk '/"status":"failed"/{getline; print}' data.json | grep -o '"id":[0-9]*' | head -n1 | cut -d':' -f2)
-      FAILED_STAGE=$(awk -v id="$JOB_ID" '
-        $0 ~ "\"id\":"id {found=1}
-        found && $0 ~ "\"stage\":" {
-          gsub(/[",]/, "", $2); print $2; exit
-        }' data.json)
-      echo "JOB_ID: $JOB_ID"
-      echo "FAILED_STAGE: $FAILED_STAGE"
+      ERROR_DETAILS=$(grep -o '"web_url":"[^"]*' data.json | head -n1 | cut -d'"' -f4 || true)
+      JOB_ID=$(echo "$ERROR_DETAILS" | awk -F'/' '{print $NF}' || true)
 
-      if [[ -z "$JOB_ID" ]]; then
-        ERROR_DETAILS="No failed job found"
+      if [[ -z "$ERROR_DETAILS" || -z "$JOB_ID" ]]; then
+        echo "No failed job or unable to extract job ID / URL"
+        ERROR_DETAILS="No failed job URL found"
         FAILED_STAGE="unknown"
       else
-        # Get logs
-        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
-          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
+        echo "JOB_ID: $JOB_ID"
 
+        # Extract FAILED_STAGE using job id
+        FAILED_STAGE=$(awk -v job_id="$JOB_ID" '
+          $0 ~ "\"id\":"job_id {found=1}
+          found && $0 ~ "\"stage\":" {
+            gsub(/[",]/, "", $2); print $2; exit
+          }' data.json || true)
+
+        echo "FAILED_STAGE: $FAILED_STAGE"
+
+        # Download job logs
+        curl -s --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
+          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -o logs.txt
+
+        # Clean and format logs
         sed 's/"//g' logs.txt > logs_no_quotes.txt
         sed "s,\x1B\[[0-9;]*[a-zA-Z],,g;s,\x0D\x0A,\x0A,g" logs_no_quotes.txt > logs_cleaned.txt
         sed 's/$/#########/' logs_cleaned.txt > final_logs.txt
         sed -e 's/\r/####/g' final_logs.txt > concatenated_logs.txt
-
         ERROR_DETAILS=$(cat concatenated_logs.txt | sed ':a;N;$!ba;s/\n/\\n/g')
       fi
 
-    # Send to microservice
+    # Send update to microservice
     - |
       curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
         --header 'Content-Type: application/json' \
         --header "Authorization: Bearer ${JWT_TOKEN}" \
         --data-raw "{
-            \"trackingId\": \"${TRACKING_ID}\",
-            \"commitId\": \"$(cat commit_id)\",
-            \"scmOnboardStatus\": \"failed\",
-            \"pipelineStatus\": \"not started\",
-            \"pipelineFailedStage\": \"${FAILED_STAGE}\",
-            \"pipelineId\": \"${CI_PIPELINE_ID}\",
-            \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
-            \"pipelineType\": \"${PIPELINE_TYPE}\",
-            \"projectId\": \"${CI_PROJECT_ID}\",
-            \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
-          }"
+          \"trackingId\": \"${TRACKING_ID}\",
+          \"commitId\": \"$(cat commit_id)\",
+          \"scmOnboardStatus\": \"failed\",
+          \"pipelineStatus\": \"not started\",
+          \"pipelineFailedStage\": \"${FAILED_STAGE}\",
+          \"pipelineId\": \"${CI_PIPELINE_ID}\",
+          \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
+          \"pipelineType\": \"${PIPELINE_TYPE}\",
+          \"projectId\": \"${CI_PROJECT_ID}\",
+          \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
+        }"
