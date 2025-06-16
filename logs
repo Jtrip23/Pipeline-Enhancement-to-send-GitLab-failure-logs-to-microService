@@ -10,10 +10,12 @@ Preparing environment
 00:00
 Running on runner-kusygh9-project-65122-concurrent-0 via l7lp2apmglr0003...
 Getting source from Git repository
-00:02
+00:06
 Fetching changes with git depth set to 20...
 Reinitialized existing Git repository in /builds/apihub-cloud-testing/ag-proxyx-emea-V1/.git/
 Checking out 9b1402cf as detached HEAD (ref is feature-1)...
+Removing apim-apigeelint/
+Removing build.env
 Removing target/
 Skipping Git submodules setup
 Restoring cache
@@ -22,7 +24,7 @@ Checking cache for 9b1402cf126b948cf63ec5a1823d7e2f91752034-protected...
 cache.zip is up to date                            
 Successfully extracted cache
 Executing "step_script" stage of the job script
-00:01
+00:02
 Using docker image sha256:0a9e5a17e9e76a2ef2425fb5e9fba3d0820f93953ceb5d54ecb65d92089abb53 for fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas:develop-991d2f8c with digest fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas@sha256:307c83568cfce9ff6b2fd7e45c001bc9f58a07272866026092acfd30dce486c6 ...
 $ echo $CI_COMMIT_SHORT_SHA > commit_id
 $ echo "TRACKING_ID = $TRACKING_ID"
@@ -30,7 +32,38 @@ TRACKING_ID = lvbSd8HmIpM6YupyfsGe4
 $ JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \ # collapsed multi-line command
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100   315  100   276  100    39    561     79 --:--:-- --:--:-- --:--:--   641
-Cleaning up project directory and file based variables
+100   887  100   836  100    51   1415     86 --:--:-- --:--:-- --:--:--  1500
+JWT_TOKEN (truncated): eyJraWQiOi...
+$ curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   118  100   118    0     0    348      0 --:--:-- --:--:-- --:--:--   349
+$ FAILED_STAGE=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \1 /p' data.json) # collapsed multi-line command
+$ curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \ # collapsed multi-line command
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  2258    0  1870  100   388  12520   2597 --:--:-- --:--:-- --:--:-- 15154
+{"id":11242,"apmNumber":"APM0006528","username":"amol.ghanwat1@fiserv.com","proxyWorkflow":"onboard-new","proxyName":"ag-proxyx-emea-V1","trackingId":"lvbSd8HmIpM6YupyfsGe4","apiHubEnv":"prod","createdDate":"2025-06-16 16:02:14","gatewayType":"apigee-x","gatewayOrg":"prj-fisv-n-emea-apigee517ef511","gatewayEnv":"dev1","commitId":"9b1402cf","scmOnboardStatus":"failed","pipelineStatus":"not started","pipelineFailedStage":"","pipelineType":"proxy-gen","pipelineId":"3883096","pipelineErrorDetails":"Invalid private_token or no failed jobs","projectId":"65122","scmDetails":{"scm_url":"gitlab.onefiserv.net","migration":"false","refBranch":"feature-1","repo_name":"ag-proxyx-emea-V1","user_name":"F858V5X","gitlab_api":"api/v4/projects","user_email":"F858V5X","gitlab_group":"apihub-cloud-testing","namespace_id":"10329","artifact_type":"proxy-gen","commit_message":"created proxy"},"proxygenPayload":{"metadata":{"ts":{"default":{"name":"ag-tsx-emea-v1","path":"/ag-proxyx-emea-v1"},"additionalTargetServers":[]},"buName":"apihub","apiName":"ag-proxyx-emea-V1","postman":{"collections":[]},"version":"","basepath":"/ag-proxyx-emea-v1/v1","teamName":"proxyX","apigeeEnv":"dev1","apigeeOrg":"prj-fisv-n-emea-apigee517ef511","apihubEnv":"apihub","apmNumber":"APM0006528","refBranch":"master","artifactId":"ag-proxyx-emea-V1","trackingId":"lvbSd8HmIpM6YupyfsGe4","activations":{"acl":false,"jwt":false,"dpop":false,"hmac":false,"mtls":false,"oidc":false,"cache":false,"authFlag":true,"monetize":false,"customAuth":false,"basicAuthFlag":false,"transformation":{"type":"json2xml","enabled":false}},"importMethod":"","templateType":"apigee-x","resourcePaths":[],"developerEmail":"apim-team@fiserv.com","existingProduct":"FTS-APIM-Default-ProductX","proxyDescription":"APM0006528-ag-proxyx-emea-v1"}},"gitlabPlatform":"cloud","securityType":"Oauth","functionalTestStatus":"NA"}
+Saving cache for successful job
 00:01
-ERROR: Job failed: exit code 1
+Creating cache 9b1402cf126b948cf63ec5a1823d7e2f91752034-protected...
+WARNING: .m2/repository/: no matching files. Ensure that the artifact path is relative to the working directory (/builds/apihub-cloud-testing/ag-proxyx-emea-V1) 
+WARNING: edge/target/: no matching files. Ensure that the artifact path is relative to the working directory (/builds/apihub-cloud-testing/ag-proxyx-emea-V1) 
+WARNING: edge/node_modules/: no matching files. Ensure that the artifact path is relative to the working directory (/builds/apihub-cloud-testing/ag-proxyx-emea-V1) 
+pom.xml: found 1 matching artifact files and directories 
+WARNING: edge/pom.xml: no matching files. Ensure that the artifact path is relative to the working directory (/builds/apihub-cloud-testing/ag-proxyx-emea-V1) 
+target: found 76 matching artifact files and directories 
+Archive is up to date!                             
+Created cache
+Uploading artifacts for successful job
+00:05
+Uploading artifacts...
+WARNING: edge/**: no matching files. Ensure that the artifact path is relative to the working directory (/builds/apihub-cloud-testing/ag-proxyx-emea-V1) 
+.m2/**: found 3 matching artifact files and directories 
+pom.xml: found 1 matching artifact files and directories 
+WARNING: edge/pom.xml: no matching files. Ensure that the artifact path is relative to the working directory (/builds/apihub-cloud-testing/ag-proxyx-emea-V1) 
+target: found 76 matching artifact files and directories 
+Uploading artifacts as "archive" to coordinator... 201 Created  id=15327601 responseStatus=201 Created token=glcbt-64
+Cleaning up project directory and file based variables
+00:00
+Job succeeded
