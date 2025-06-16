@@ -1,5 +1,5 @@
 Running with gitlab-runner 16.11.2 (1d04b67a)
-  on l7lp2apmglr0004-Prod-Global-GitLab-Cloud-Docker-apihub-shared FKyj3sKQ, system ID: s_842e1c8182d6
+  on l7lp2apmglr0003-Prod-Global-GitLab-Cloud-Docker-apihub-shared _kUsyGH9, system ID: s_842e1c8182d6
 Resolving secrets
 Preparing the "docker" executor
 00:04
@@ -7,8 +7,8 @@ Using Docker executor with image fmk.nexus.onefiserv.net/apm/0006528/apim-maven-
 Pulling docker image fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas:develop-991d2f8c ...
 Using docker image sha256:0a9e5a17e9e76a2ef2425fb5e9fba3d0820f93953ceb5d54ecb65d92089abb53 for fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas:develop-991d2f8c with digest fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas@sha256:307c83568cfce9ff6b2fd7e45c001bc9f58a07272866026092acfd30dce486c6 ...
 Preparing environment
-00:01
-Running on runner-fkyj3skq-project-65122-concurrent-0 via l7lp2apmglr0004...
+00:00
+Running on runner-kusygh9-project-65122-concurrent-0 via l7lp2apmglr0003...
 Getting source from Git repository
 00:02
 Fetching changes with git depth set to 20...
@@ -20,20 +20,10 @@ Skipping Git submodules setup
 Restoring cache
 00:01
 Checking cache for 9b1402cf126b948cf63ec5a1823d7e2f91752034-protected...
-Downloading cache from https://prodftsapihubgensa.blob.core.windows.net/apihub-prod-shared-runner-cache/shared/project/65122/9b1402cf126b948cf63ec5a1823d7e2f91752034-protected 
+cache.zip is up to date                            
 Successfully extracted cache
-Downloading artifacts
-00:05
-Downloading artifacts for build:pre-deploy (15323719)...
-Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15323719 responseStatus=200 OK token=glcbt-64
-Downloading artifacts for build:deploy (15323720)...
-Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15323720 responseStatus=200 OK token=glcbt-64
-Downloading artifacts for build:package (15323716)...
-Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15323716 responseStatus=200 OK token=glcbt-64
-Downloading artifacts for build:post-deploy (15323721)...
-Downloading artifacts from coordinator... ok        host=gitlab.onefiserv.net id=15323721 responseStatus=200 OK token=glcbt-64
 Executing "step_script" stage of the job script
-00:03
+00:02
 Using docker image sha256:0a9e5a17e9e76a2ef2425fb5e9fba3d0820f93953ceb5d54ecb65d92089abb53 for fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas:develop-991d2f8c with digest fmk.nexus.onefiserv.net/apm/0006528/apim-maven-apigee-saas@sha256:307c83568cfce9ff6b2fd7e45c001bc9f58a07272866026092acfd30dce486c6 ...
 $ echo $CI_COMMIT_SHORT_SHA > commit_id
 $ echo "TRACKING_ID = $TRACKING_ID"
@@ -41,7 +31,7 @@ TRACKING_ID = lvbSd8HmIpM6YupyfsGe4
 $ JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \ # collapsed multi-line command
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100   887  100   836  100    51   1404     85 --:--:-- --:--:-- --:--:--  1490
+100   887  100   836  100    51   1678    102 --:--:-- --:--:-- --:--:--  1781
 JWT_TOKEN (truncated): eyJraWQiOi...
 $ curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o data.json
 $ ERROR_DETAILS=$(grep -o '"web_url":"[^"]*' data.json | head -n1 | cut -d'"' -f4 || true) # collapsed multi-line command
@@ -49,8 +39,8 @@ No failed job or unable to extract job ID / URL
 $ curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \ # collapsed multi-line command
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100  2240    0  1861  100   379   4567    930 --:--:-- --:--:-- --:--:--  5490
-{"id":11226,"apmNumber":"APM0006528","username":"amol.ghanwat1@fiserv.com","proxyWorkflow":"onboard-new","proxyName":"ag-proxyx-emea-V1","trackingId":"lvbSd8HmIpM6YupyfsGe4","apiHubEnv":"prod","createdDate":"2025-06-16 14:12:08","gatewayType":"apigee-x","gatewayOrg":"prj-fisv-n-emea-apigee517ef511","gatewayEnv":"dev1","commitId":"9b1402cf","scmOnboardStatus":"failed","pipelineStatus":"not started","pipelineFailedStage":"unknown","pipelineType":"proxy-gen","pipelineId":"3882002","pipelineErrorDetails":"No failed job URL found","projectId":"65122","scmDetails":{"scm_url":"gitlab.onefiserv.net","migration":"false","refBranch":"feature-1","repo_name":"ag-proxyx-emea-V1","user_name":"F858V5X","gitlab_api":"api/v4/projects","user_email":"F858V5X","gitlab_group":"apihub-cloud-testing","namespace_id":"10329","artifact_type":"proxy-gen","commit_message":"created proxy"},"proxygenPayload":{"metadata":{"ts":{"default":{"name":"ag-tsx-emea-v1","path":"/ag-proxyx-emea-v1"},"additionalTargetServers":[]},"buName":"apihub","apiName":"ag-proxyx-emea-V1","postman":{"collections":[]},"version":"","basepath":"/ag-proxyx-emea-v1/v1","teamName":"proxyX","apigeeEnv":"dev1","apigeeOrg":"prj-fisv-n-emea-apigee517ef511","apihubEnv":"apihub","apmNumber":"APM0006528","refBranch":"master","artifactId":"ag-proxyx-emea-V1","trackingId":"lvbSd8HmIpM6YupyfsGe4","activations":{"acl":false,"jwt":false,"dpop":false,"hmac":false,"mtls":false,"oidc":false,"cache":false,"authFlag":true,"monetize":false,"customAuth":false,"basicAuthFlag":false,"transformation":{"type":"json2xml","enabled":false}},"importMethod":"","templateType":"apigee-x","resourcePaths":[],"developerEmail":"apim-team@fiserv.com","existingProduct":"FTS-APIM-Default-ProductX","proxyDescription":"APM0006528-ag-proxyx-emea-v1"}},"gitlabPlatform":"cloud","securityType":"Oauth","functionalTestStatus":"NA"}
+100  2240    0  1861  100   379   6579   1339 --:--:-- --:--:-- --:--:--  7943
+{"id":11229,"apmNumber":"APM0006528","username":"amol.ghanwat1@fiserv.com","proxyWorkflow":"onboard-new","proxyName":"ag-proxyx-emea-V1","trackingId":"lvbSd8HmIpM6YupyfsGe4","apiHubEnv":"prod","createdDate":"2025-06-16 14:25:29","gatewayType":"apigee-x","gatewayOrg":"prj-fisv-n-emea-apigee517ef511","gatewayEnv":"dev1","commitId":"9b1402cf","scmOnboardStatus":"failed","pipelineStatus":"not started","pipelineFailedStage":"unknown","pipelineType":"proxy-gen","pipelineId":"3882175","pipelineErrorDetails":"No failed job URL found","projectId":"65122","scmDetails":{"scm_url":"gitlab.onefiserv.net","migration":"false","refBranch":"feature-1","repo_name":"ag-proxyx-emea-V1","user_name":"F858V5X","gitlab_api":"api/v4/projects","user_email":"F858V5X","gitlab_group":"apihub-cloud-testing","namespace_id":"10329","artifact_type":"proxy-gen","commit_message":"created proxy"},"proxygenPayload":{"metadata":{"ts":{"default":{"name":"ag-tsx-emea-v1","path":"/ag-proxyx-emea-v1"},"additionalTargetServers":[]},"buName":"apihub","apiName":"ag-proxyx-emea-V1","postman":{"collections":[]},"version":"","basepath":"/ag-proxyx-emea-v1/v1","teamName":"proxyX","apigeeEnv":"dev1","apigeeOrg":"prj-fisv-n-emea-apigee517ef511","apihubEnv":"apihub","apmNumber":"APM0006528","refBranch":"master","artifactId":"ag-proxyx-emea-V1","trackingId":"lvbSd8HmIpM6YupyfsGe4","activations":{"acl":false,"jwt":false,"dpop":false,"hmac":false,"mtls":false,"oidc":false,"cache":false,"authFlag":true,"monetize":false,"customAuth":false,"basicAuthFlag":false,"transformation":{"type":"json2xml","enabled":false}},"importMethod":"","templateType":"apigee-x","resourcePaths":[],"developerEmail":"apim-team@fiserv.com","existingProduct":"FTS-APIM-Default-ProductX","proxyDescription":"APM0006528-ag-proxyx-emea-v1"}},"gitlabPlatform":"cloud","securityType":"Oauth","functionalTestStatus":"NA"}
 Saving cache for successful job
 00:01
 Creating cache 9b1402cf126b948cf63ec5a1823d7e2f91752034-protected...
@@ -70,7 +60,7 @@ WARNING: edge/**: no matching files. Ensure that the artifact path is relative t
 pom.xml: found 1 matching artifact files and directories 
 WARNING: edge/pom.xml: no matching files. Ensure that the artifact path is relative to the working directory (/builds/apihub-cloud-testing/ag-proxyx-emea-V1) 
 target: found 76 matching artifact files and directories 
-Uploading artifacts as "archive" to coordinator... 201 Created  id=15323728 responseStatus=201 Created token=glcbt-64
+Uploading artifacts as "archive" to coordinator... 201 Created  id=15324294 responseStatus=201 Created token=glcbt-64
 Cleaning up project directory and file based variables
-00:01
+00:00
 Job succeeded
