@@ -71,3 +71,10 @@ build:notify-failure:
             \"projectId\": \"${CI_PROJECT_ID}\",
             \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
           }"
+  
+build:package:
+  stage: package  
+  script:
+    - echo "Intentional failure for testing notify log collection"
+    - exit 1
+  
