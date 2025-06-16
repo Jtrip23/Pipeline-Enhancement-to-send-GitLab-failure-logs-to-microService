@@ -1,4 +1,7 @@
-# Intentional fail job to trigger notify
+stages:
+  - jshint
+  - notify
+
 build:jshint:
   stage: jshint
   script:
@@ -24,10 +27,18 @@ build:notify-failure:
       echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
 
     # Get failed job info
-    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
+    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
+        --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
+
+    # DEBUG: Echo contents of data.json
+    - echo "===== Failed Jobs JSON ====="
+    - cat data.json
+    - echo "============================"
+
+    # Extract stage and web_url
     - |
-      FAILED_STAGE=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \1 /p' data.json)
-      ERROR_DETAILS=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \2 /p' data.json)
+      FAILED_STAGE=$(grep -o '"stage":"[^"]*"' data.json | head -1 | awk -F':' '{print $2}' | tr -d '"')
+      ERROR_DETAILS=$(grep -o '"web_url":"[^"]*"' data.json | head -1 | awk -F':' '{print $2}' | tr -d '"')
 
       if [[ -z "$ERROR_DETAILS" ]]; then
         ERROR_DETAILS="Invalid private_token or no failed jobs"
@@ -35,10 +46,11 @@ build:notify-failure:
         JOB_ID=$(echo $ERROR_DETAILS | awk -F'/' '{print $NF}')
         echo "JOB_ID: $JOB_ID"
 
-        # Get failed job logs
-        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
+        # Get logs
+        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
+          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
 
-        # Clean logs for MS payload
+        # Clean logs
         sed 's/"//g' logs.txt > logs_no_quotes.txt
         sed "s,\x1B\[[0-9;]*[a-zA-Z],,g;s,\x0D\x0A,\x0A,g" logs_no_quotes.txt > logs_cleaned.txt
         sed 's/$/#########/' logs_cleaned.txt > final_logs.txt
@@ -46,22 +58,20 @@ build:notify-failure:
         ERROR_DETAILS=$(cat concatenated_logs.txt | sed ':a;N;$!ba;s/\n/\\n/g')
       fi
 
-    # Final MS call with logs
+    # Final API call
     - |
       curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
         --header 'Content-Type: application/json' \
         --header "Authorization: Bearer ${JWT_TOKEN}" \
         --data-raw "{
-            \"trackingId\": \"${TRACKING_ID}\",
-            \"commitId\": \"$(cat commit_id)\",
-            \"scmOnboardStatus\": \"failed\",
-            \"pipelineStatus\": \"not started\",
-            \"pipelineFailedStage\": \"${FAILED_STAGE}\",
-            \"pipelineId\": \"${CI_PIPELINE_ID}\",
-            \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
-            \"pipelineType\": \"${PIPELINE_TYPE}\",
-            \"projectId\": \"${CI_PROJECT_ID}\",
-            \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
-          }"
-  
-  
+          \"trackingId\": \"${TRACKING_ID}\",
+          \"commitId\": \"$(cat commit_id)\",
+          \"scmOnboardStatus\": \"failed\",
+          \"pipelineStatus\": \"not started\",
+          \"pipelineFailedStage\": \"${FAILED_STAGE}\",
+          \"pipelineId\": \"${CI_PIPELINE_ID}\",
+          \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
+          \"pipelineType\": \"${PIPELINE_TYPE}\",
+          \"projectId\": \"${CI_PROJECT_ID}\",
+          \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
+        }"
