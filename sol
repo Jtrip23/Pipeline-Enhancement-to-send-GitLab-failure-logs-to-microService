@@ -1,5 +1,5 @@
-build:notification:
-  image: $Nexus_URL/apim-maven-apigee-saas:latest
+build:notify-failure:
+  image: $APIGEE_FMK_MVN_IMAGE_NAME
   stage: notify
   when: on_failure
   allow_failure: true
@@ -56,3 +56,5 @@ build:notification:
             \"projectId\": \"${CI_PROJECT_ID}\",
             \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
           }"
+  
+  
