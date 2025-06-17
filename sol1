@@ -9,48 +9,46 @@ build:notify-failure:
 
     # Get JWT token
     - |
-      JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \
+      JWT_TOKEN=$(curl --silent --location --request POST "$APIGEE_JWT_TOKEN_URL" \
         --header 'Content-Type: application/x-www-form-urlencoded' \
         --header 'Authorization: Basic TWg5VktuaVc5cktWa0JSWllvYW1HWjlrNWhHQ25yQ3E6cE5WalBkQmduNzZ2MUkwQTloQkZSQkd0aTRpaHhrMWpPc0FvOU1MWmdPUg==' \
         --data-urlencode 'alg=RS256' \
-        --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | jq -r '.access_token')
+        --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
       echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
 
-    # Get failed job info
+    # Fetch failed jobs
     - |
-      curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
+      curl --silent --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
         --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
 
-    - cat data.json  # Debugging
-
-    # Extract failed job details using jq
+    # Parse failed stage and job URL
     - |
-      FAILED_STAGE=$(jq -r '.[0].stage' data.json)
-      ERROR_DETAILS=$(jq -r '.[0].web_url' data.json)
-      JOB_ID=$(jq -r '.[0].id' data.json)
+      FAILED_STAGE=$(grep -o '"stage":"[^"]*"' data.json | head -n1 | sed 's/"stage":"//;s/"//')
+      ERROR_URL=$(grep -o '"web_url":"[^"]*"' data.json | head -n1 | sed 's/"web_url":"//;s/"//')
 
-      echo "FAILED_STAGE=$FAILED_STAGE"
-      echo "ERROR_DETAILS=$ERROR_DETAILS"
-      echo "JOB_ID=$JOB_ID"
+      if [[ -z "$ERROR_URL" ]]; then
+        ERROR_DETAILS="Invalid PRIVATE_TOKEN or no failed jobs"
+        echo "No failed jobs found or authentication error."
+      else
+        JOB_ID=$(echo "$ERROR_URL" | awk -F'/' '{print $NF}')
+        echo "Found failed job ID: $JOB_ID"
 
-    # Get and clean job logs
-    - |
-      if [[ "$JOB_ID" != "null" && -n "$JOB_ID" ]]; then
-        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
-          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
+        # Download job logs
+        curl --silent --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
+          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -o logs.txt
 
+        # Clean logs
         sed 's/"//g' logs.txt > logs_no_quotes.txt
         sed "s,\x1B\[[0-9;]*[a-zA-Z],,g;s,\x0D\x0A,\x0A,g" logs_no_quotes.txt > logs_cleaned.txt
         sed 's/$/#########/' logs_cleaned.txt > final_logs.txt
         sed -e 's/\r/####/g' final_logs.txt > concatenated_logs.txt
         ERROR_DETAILS=$(cat concatenated_logs.txt | sed ':a;N;$!ba;s/\n/\\n/g')
-      else
-        ERROR_DETAILS="Invalid token or no failed job"
       fi
 
-    # Final API call
+    # Final PUT request with logs
     - |
-      curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
+      echo "Sending final audit log..."
+      curl --silent --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
         --header 'Content-Type: application/json' \
         --header "Authorization: Bearer ${JWT_TOKEN}" \
         --data-raw "{
@@ -65,3 +63,10 @@ build:notify-failure:
           \"projectId\": \"${CI_PROJECT_ID}\",
           \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
         }"
+
+  artifacts:
+    paths:
+      - data.json
+      - logs.txt
+      - concatenated_logs.txt
+    when: always
