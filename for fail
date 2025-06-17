@@ -1,8 +1,11 @@
-build:test-fail:
-  stage: package  # you can change to "lint" or "init" if needed
-  script:
-    - echo "Intentional failure for testing notify log collection"
-    - exit 1
-  allow_failure: false
-  rules:
-    - when: always
+build:jshint :
+  <<: *jshint_definition
+  stage: jshint
+  needs:
+    - build:lint
+  artifacts:
+    reports:
+      dotenv: build.env
+    paths:
+      - "edge/policyReportJSHint.json"
+      - "edge/unitTestReportJSHint.json"
