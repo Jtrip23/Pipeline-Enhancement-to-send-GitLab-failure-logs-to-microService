@@ -13,53 +13,55 @@ build:notify-failure:
         --header 'Content-Type: application/x-www-form-urlencoded' \
         --header 'Authorization: Basic TWg5VktuaVc5cktWa0JSWllvYW1HWjlrNWhHQ25yQ3E6cE5WalBkQmduNzZ2MUkwQTloQkZSQkd0aTRpaHhrMWpPc0FvOU1MWmdPUg==' \
         --data-urlencode 'alg=RS256' \
-        --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
+        --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | jq -r '.access_token')
       echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
 
     # Get failed job info
-    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
-        --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
-    - cat data.json  # for debugging
-
-    # Extract stage, web_url, and job ID
     - |
-      FAILED_STAGE=$(grep -o '"stage":"[^"]*"' data.json | head -n 1 | cut -d':' -f2 | tr -d '"')
-      ERROR_DETAILS=$(grep -o '"web_url":"[^"]*"' data.json | head -n 1 | cut -d':' -f2- | tr -d '"')
-      JOB_ID=$(grep -o '"id":[0-9]*' data.json | head -n 1 | cut -d':' -f2)
+      curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
+        --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
+
+    - cat data.json  # Debugging
+
+    # Extract failed job details using jq
+    - |
+      FAILED_STAGE=$(jq -r '.[0].stage' data.json)
+      ERROR_DETAILS=$(jq -r '.[0].web_url' data.json)
+      JOB_ID=$(jq -r '.[0].id' data.json)
 
       echo "FAILED_STAGE=$FAILED_STAGE"
       echo "ERROR_DETAILS=$ERROR_DETAILS"
       echo "JOB_ID=$JOB_ID"
 
-      if [[ -z "$JOB_ID" ]]; then
-        ERROR_DETAILS="Invalid private_token or no failed jobs"
-      else
-        # Get logs for failed job
+    # Get and clean job logs
+    - |
+      if [[ "$JOB_ID" != "null" && -n "$JOB_ID" ]]; then
         curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
           --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
 
-        # Clean log content for JSON-safe payload
         sed 's/"//g' logs.txt > logs_no_quotes.txt
         sed "s,\x1B\[[0-9;]*[a-zA-Z],,g;s,\x0D\x0A,\x0A,g" logs_no_quotes.txt > logs_cleaned.txt
         sed 's/$/#########/' logs_cleaned.txt > final_logs.txt
         sed -e 's/\r/####/g' final_logs.txt > concatenated_logs.txt
         ERROR_DETAILS=$(cat concatenated_logs.txt | sed ':a;N;$!ba;s/\n/\\n/g')
+      else
+        ERROR_DETAILS="Invalid token or no failed job"
       fi
 
-    # Final call to MS
+    # Final API call
     - |
       curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
         --header 'Content-Type: application/json' \
         --header "Authorization: Bearer ${JWT_TOKEN}" \
         --data-raw "{
-            \"trackingId\": \"${TRACKING_ID}\",
-            \"commitId\": \"$(cat commit_id)\",
-            \"scmOnboardStatus\": \"failed\",
-            \"pipelineStatus\": \"not started\",
-            \"pipelineFailedStage\": \"${FAILED_STAGE}\",
-            \"pipelineId\": \"${CI_PIPELINE_ID}\",
-            \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
-            \"pipelineType\": \"${PIPELINE_TYPE}\",
-            \"projectId\": \"${CI_PROJECT_ID}\",
-            \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
-          }"
+          \"trackingId\": \"${TRACKING_ID}\",
+          \"commitId\": \"$(cat commit_id)\",
+          \"scmOnboardStatus\": \"failed\",
+          \"pipelineStatus\": \"not started\",
+          \"pipelineFailedStage\": \"${FAILED_STAGE}\",
+          \"pipelineId\": \"${CI_PIPELINE_ID}\",
+          \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
+          \"pipelineType\": \"${PIPELINE_TYPE}\",
+          \"projectId\": \"${CI_PROJECT_ID}\",
+          \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
+        }"
