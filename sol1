@@ -17,21 +17,28 @@ build:notify-failure:
       echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
 
     # Get failed job info
-    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
-    - |
-      FAILED_STAGE=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \1 /p' data.json)
-      ERROR_DETAILS=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \2 /p' data.json)
+    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
+        --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
+    - cat data.json  # for debugging
 
-      if [[ -z "$ERROR_DETAILS" ]]; then
+    # Extract stage, web_url, and job ID
+    - |
+      FAILED_STAGE=$(grep -o '"stage":"[^"]*"' data.json | head -n 1 | cut -d':' -f2 | tr -d '"')
+      ERROR_DETAILS=$(grep -o '"web_url":"[^"]*"' data.json | head -n 1 | cut -d':' -f2- | tr -d '"')
+      JOB_ID=$(grep -o '"id":[0-9]*' data.json | head -n 1 | cut -d':' -f2)
+
+      echo "FAILED_STAGE=$FAILED_STAGE"
+      echo "ERROR_DETAILS=$ERROR_DETAILS"
+      echo "JOB_ID=$JOB_ID"
+
+      if [[ -z "$JOB_ID" ]]; then
         ERROR_DETAILS="Invalid private_token or no failed jobs"
       else
-        JOB_ID=$(echo $ERROR_DETAILS | awk -F'/' '{print $NF}')
-        echo "JOB_ID: $JOB_ID"
+        # Get logs for failed job
+        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
+          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
 
-        # Get failed job logs
-        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
-
-        # Clean logs for MS payload
+        # Clean log content for JSON-safe payload
         sed 's/"//g' logs.txt > logs_no_quotes.txt
         sed "s,\x1B\[[0-9;]*[a-zA-Z],,g;s,\x0D\x0A,\x0A,g" logs_no_quotes.txt > logs_cleaned.txt
         sed 's/$/#########/' logs_cleaned.txt > final_logs.txt
@@ -39,7 +46,7 @@ build:notify-failure:
         ERROR_DETAILS=$(cat concatenated_logs.txt | sed ':a;N;$!ba;s/\n/\\n/g')
       fi
 
-    # Final MS call with logs
+    # Final call to MS
     - |
       curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
         --header 'Content-Type: application/json' \
@@ -56,5 +63,3 @@ build:notify-failure:
             \"projectId\": \"${CI_PROJECT_ID}\",
             \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
           }"
-  
-  
