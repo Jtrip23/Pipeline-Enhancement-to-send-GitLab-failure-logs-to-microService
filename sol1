@@ -18,10 +18,6 @@ build:notify-failure:
 
     # Get failed job info
     - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
-    - echo "----- data.json contents -----"
-    - cat data.json
-    - echo "-----------------------------"
-
     - |
       FAILED_STAGE=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \1 /p' data.json)
       ERROR_DETAILS=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \2 /p' data.json)
@@ -60,3 +56,5 @@ build:notify-failure:
             \"projectId\": \"${CI_PROJECT_ID}\",
             \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
           }"
+  
+  
