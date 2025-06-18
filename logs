@@ -10,17 +10,12 @@ Preparing environment
 00:01
 Running on runner-92btkp-project-65122-concurrent-0 via l7lt2apmglr0005...
 Getting source from Git repository
-00:03
+00:02
 Fetching changes with git depth set to 20...
 Reinitialized existing Git repository in /builds/apihub-cloud-testing/ag-proxyx-emea-V1/.git/
 Checking out 9b1402cf as detached HEAD (ref is feature-1)...
 Removing commit_id
-Removing concatenated_logs.txt
 Removing data.json
-Removing final_logs.txt
-Removing logs.txt
-Removing logs_cleaned.txt
-Removing logs_no_quotes.txt
 Skipping Git submodules setup
 Restoring cache
 00:02
@@ -35,7 +30,9 @@ $ echo "TRACKING_ID = $TRACKING_ID"
 TRACKING_ID = lvbSd8HmIpM6YupyfsGe4
 $ JWT_TOKEN=$(curl --silent --location --request POST "$APIGEE_JWT_TOKEN_URL" \ # collapsed multi-line command
 JWT_TOKEN (truncated): eyJraWQiOi...
-$ curl --silent --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \ --header "PRIVATE-TOKEN:5AVBaTe2YkKbyGsHf_UX" > data.json
+$ curl --silent --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \ # collapsed multi-line command
+$ JOB_ID=$(jq '.[0].id' data.json) # collapsed multi-line command
+/usr/bin/bash: line 314: jq: command not found
 Cleaning up project directory and file based variables
 00:01
 ERROR: Job failed: exit code 1
