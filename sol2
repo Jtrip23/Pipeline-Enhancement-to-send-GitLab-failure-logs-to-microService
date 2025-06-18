@@ -1,0 +1,65 @@
+notify-failure:
+  tags:
+    - apimhub
+  image: $APIGEE_FMK_MVN_IMAGE_NAME
+  stage: notify
+  when: on_failure
+  allow_failure: true
+  script:
+    # Save commit ID
+    - echo $CI_COMMIT_SHORT_SHA > commit_id
+    - echo "TRACKING_ID = $TRACKING_ID"
+
+    # Get JWT token
+    - |
+      JWT_TOKEN=$(curl --silent --location --request POST "$APIGEE_JWT_TOKEN_URL" \
+        --header 'Content-Type: application/x-www-form-urlencoded' \
+        --header 'Authorization: Basic TWg5VktuaVc5cktWa0JSWllvYW1HWjlrNWhHQ25yQ3E6cE5WalBkQmduNzZ2MUkwQTloQkZSQkd0aTRpaHhrMWpPc0FvOU1MWmdPUg==' \
+        --data-urlencode 'alg=RS256' \
+        --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' \
+        | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
+      echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
+
+    # Get list of failed jobs
+    - curl --silent --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
+        --header "PRIVATE-TOKEN:5AVBaTe2YkKbyGsHf_UX" > data.json
+
+    # Extract first failed job ID and stage name using jq
+    - |
+      JOB_ID=$(jq '.[0].id' data.json)
+      FAILED_STAGE=$(jq -r '.[0].stage' data.json)
+
+      if [[ -z "$JOB_ID" || "$JOB_ID" == "null" ]]; then
+        echo "No failed job found or invalid token"
+        ERROR_DETAILS="No failed job found or invalid token"
+      else
+        echo "Found failed job: $JOB_ID in stage: $FAILED_STAGE"
+
+        # Download job logs
+        curl --silent --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
+          --header "PRIVATE-TOKEN:5AVBaTe2YkKbyGsHf_UX" -o logs_raw.txt
+
+        # Clean ANSI sequences
+        sed -e 's,\x1B\[[0-9;]*[a-zA-Z],,g' logs_raw.txt > logs_cleaned.txt
+
+        # Escape newline characters
+        ERROR_DETAILS=$(awk '{printf "%s\\n", $0}' logs_cleaned.txt)
+      fi
+
+    # Send log and status to microservice
+    - |
+      curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
+        --header 'Content-Type: application/json' \
+        --header "Authorization: Bearer ${JWT_TOKEN}" \
+        --data-raw "{
+            \"trackingId\": \"${TRACKING_ID}\",
+            \"commitId\": \"$(cat commit_id)\",
+            \"scmOnboardStatus\": \"failed\",
+            \"pipelineStatus\": \"not started\",
+            \"pipelineFailedStage\": \"${FAILED_STAGE}\",
+            \"pipelineId\": \"${CI_PIPELINE_ID}\",
+            \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
+            \"pipelineType\": \"${PIPELINE_TYPE}\",
+            \"projectId\": \"${CI_PROJECT_ID}\",
+            \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
+          }"
