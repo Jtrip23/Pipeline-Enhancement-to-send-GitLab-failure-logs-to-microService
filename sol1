@@ -9,35 +9,33 @@ build:notify-failure:
 
     # Get JWT token
     - |
-      JWT_TOKEN=$(curl --silent --location --request POST "$APIGEE_JWT_TOKEN_URL" \
+      JWT_TOKEN=$(curl --location --request POST "$APIGEE_JWT_TOKEN_URL" \
         --header 'Content-Type: application/x-www-form-urlencoded' \
         --header 'Authorization: Basic TWg5VktuaVc5cktWa0JSWllvYW1HWjlrNWhHQ25yQ3E6cE5WalBkQmduNzZ2MUkwQTloQkZSQkd0aTRpaHhrMWpPc0FvOU1MWmdPUg==' \
         --data-urlencode 'alg=RS256' \
         --data-urlencode 'clientId=Mh9VKniW9rKVkBRZYoamGZ9k5hGCnrCq' | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | tr -d '"')
       echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
 
-    # Fetch failed jobs
+    # Get failed job info
+    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
+        --header "PRIVATE-TOKEN:5AVBaTe2YkKbyGsHf_UX" > data.json
+    - echo "===== data.json contents ====="
+    - cat data.json
     - |
-      curl --silent --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
-        --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
+      FAILED_STAGE=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \1 /p' data.json)
+      ERROR_DETAILS=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \2 /p' data.json)
 
-    # Parse failed stage and job URL
-    - |
-      FAILED_STAGE=$(grep -o '"stage":"[^"]*"' data.json | head -n1 | sed 's/"stage":"//;s/"//')
-      ERROR_URL=$(grep -o '"web_url":"[^"]*"' data.json | head -n1 | sed 's/"web_url":"//;s/"//')
-
-      if [[ -z "$ERROR_URL" ]]; then
-        ERROR_DETAILS="Invalid PRIVATE_TOKEN or no failed jobs"
-        echo "No failed jobs found or authentication error."
+      if [[ -z "$ERROR_DETAILS" ]]; then
+        ERROR_DETAILS="Invalid private_token or no failed jobs"
       else
-        JOB_ID=$(echo "$ERROR_URL" | awk -F'/' '{print $NF}')
-        echo "Found failed job ID: $JOB_ID"
+        JOB_ID=$(echo $ERROR_DETAILS | awk -F'/' '{print $NF}')
+        echo "JOB_ID: $JOB_ID"
 
-        # Download job logs
-        curl --silent --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
-          --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -o logs.txt
+        # Get failed job logs
+        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
+          --header "PRIVATE-TOKEN:5AVBaTe2YkKbyGsHf_UX" -s -o logs.txt
 
-        # Clean logs
+        # Clean logs for MS payload
         sed 's/"//g' logs.txt > logs_no_quotes.txt
         sed "s,\x1B\[[0-9;]*[a-zA-Z],,g;s,\x0D\x0A,\x0A,g" logs_no_quotes.txt > logs_cleaned.txt
         sed 's/$/#########/' logs_cleaned.txt > final_logs.txt
@@ -45,28 +43,20 @@ build:notify-failure:
         ERROR_DETAILS=$(cat concatenated_logs.txt | sed ':a;N;$!ba;s/\n/\\n/g')
       fi
 
-    # Final PUT request with logs
+    # Final MS call with logs
     - |
-      echo "Sending final audit log..."
-      curl --silent --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
+      curl --location --request PUT "https://apihub.onefiserv.net/v1/apim-audit-logging/${PIPELINE_TYPE}/update-status" \
         --header 'Content-Type: application/json' \
         --header "Authorization: Bearer ${JWT_TOKEN}" \
         --data-raw "{
-          \"trackingId\": \"${TRACKING_ID}\",
-          \"commitId\": \"$(cat commit_id)\",
-          \"scmOnboardStatus\": \"failed\",
-          \"pipelineStatus\": \"not started\",
-          \"pipelineFailedStage\": \"${FAILED_STAGE}\",
-          \"pipelineId\": \"${CI_PIPELINE_ID}\",
-          \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
-          \"pipelineType\": \"${PIPELINE_TYPE}\",
-          \"projectId\": \"${CI_PROJECT_ID}\",
-          \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
-        }"
-
-  artifacts:
-    paths:
-      - data.json
-      - logs.txt
-      - concatenated_logs.txt
-    when: always
+            \"trackingId\": \"${TRACKING_ID}\",
+            \"commitId\": \"$(cat commit_id)\",
+            \"scmOnboardStatus\": \"failed\",
+            \"pipelineStatus\": \"not started\",
+            \"pipelineFailedStage\": \"${FAILED_STAGE}\",
+            \"pipelineId\": \"${CI_PIPELINE_ID}\",
+            \"pipelineErrorDetails\": \"${ERROR_DETAILS}\",
+            \"pipelineType\": \"${PIPELINE_TYPE}\",
+            \"projectId\": \"${CI_PROJECT_ID}\",
+            \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
+          }"
