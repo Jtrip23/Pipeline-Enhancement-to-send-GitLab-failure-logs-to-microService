@@ -1,4 +1,6 @@
-build:notify-failure:
+notify-failure:
+  tags:
+    - apimhub
   image: $APIGEE_FMK_MVN_IMAGE_NAME
   stage: notify
   when: on_failure
@@ -17,10 +19,7 @@ build:notify-failure:
       echo "JWT_TOKEN (truncated): ${JWT_TOKEN:0:10}..."
 
     # Get failed job info
-    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" \
-        --header "PRIVATE-TOKEN:5AVBaTe2YkKbyGsHf_UX" > data.json
-    - echo "===== data.json contents ====="
-    - cat data.json
+    - curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs?scope[]=failed" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" > data.json
     - |
       FAILED_STAGE=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \1 /p' data.json)
       ERROR_DETAILS=$(sed -n 's/.*"stage":"\([^"]*\)".*"web_url":"\([^"]*\)".*/ \2 /p' data.json)
@@ -32,8 +31,7 @@ build:notify-failure:
         echo "JOB_ID: $JOB_ID"
 
         # Get failed job logs
-        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" \
-          --header "PRIVATE-TOKEN:5AVBaTe2YkKbyGsHf_UX" -s -o logs.txt
+        curl --location --request GET "https://gitlab.onefiserv.net/api/v4/projects/$CI_PROJECT_ID/jobs/$JOB_ID/trace" --header "PRIVATE-TOKEN:$PRIVATE_TOKEN" -s -o logs.txt
 
         # Clean logs for MS payload
         sed 's/"//g' logs.txt > logs_no_quotes.txt
@@ -60,3 +58,5 @@ build:notify-failure:
             \"projectId\": \"${CI_PROJECT_ID}\",
             \"refBranch\": \"${CI_COMMIT_REF_NAME}\"
           }"
+  
+  
